@@ -3,6 +3,7 @@ import type { JsonSchemaType } from '@librechat/data-schemas';
 import type { MCPConnection } from '~/mcp/connection';
 import type * as t from '~/mcp/types';
 import { isMCPDomainAllowed, extractMCPServerDomain } from '~/auth/domain';
+import { RelaxedListToolsResultSchema, normalizeToolInputSchemas } from '~/mcp/schema';
 import { MCPConnectionFactory } from '~/mcp/MCPConnectionFactory';
 import { MCPDomainNotAllowedError } from '~/mcp/errors';
 import { detectOAuthRequirement } from '~/mcp/oauth';
@@ -102,8 +103,11 @@ export class MCPServerInspector {
   private async fetchServerCapabilities(): Promise<void> {
     const capabilities = this.connection!.client.getServerCapabilities();
     this.config.capabilities = JSON.stringify(capabilities);
-    const tools = await this.connection!.client.listTools();
-    this.config.tools = tools.tools.map((tool) => tool.name).join(', ');
+    const result = await this.connection!.client.request(
+      { method: 'tools/list' },
+      RelaxedListToolsResultSchema,
+    );
+    this.config.tools = result.tools.map((tool) => tool.name).join(', ');
   }
 
   private async fetchToolFunctions(): Promise<void> {
@@ -123,10 +127,14 @@ export class MCPServerInspector {
     serverName: string,
     connection: MCPConnection,
   ): Promise<t.LCAvailableTools> {
-    const { tools }: t.MCPToolListResponse = await connection.client.listTools();
+    const { tools } = await connection.client.request(
+      { method: 'tools/list' },
+      RelaxedListToolsResultSchema,
+    );
+    const normalizedTools = normalizeToolInputSchemas(tools);
 
     const toolFunctions: t.LCAvailableTools = {};
-    tools.forEach((tool) => {
+    normalizedTools.forEach((tool) => {
       const name = `${tool.name}${Constants.mcp_delimiter}${serverName}`;
       toolFunctions[name] = {
         type: 'function',

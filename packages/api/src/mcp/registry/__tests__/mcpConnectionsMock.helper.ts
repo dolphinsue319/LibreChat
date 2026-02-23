@@ -7,6 +7,21 @@ import type { MCPConnection } from '~/mcp/connection';
  * @returns Mocked MCPConnection instance
  */
 export function createMockConnection(serverName: string): jest.Mocked<MCPConnection> {
+  const defaultToolsResult = {
+    tools: [
+      {
+        name: 'listFiles',
+        description: `Description for ${serverName}'s listFiles tool`,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            input: { type: 'string' },
+          },
+        },
+      },
+    ],
+  };
+
   const mockClient = {
     getInstructions: jest.fn().mockReturnValue(`instructions for ${serverName}`),
     getServerCapabilities: jest.fn().mockReturnValue({
@@ -14,20 +29,8 @@ export function createMockConnection(serverName: string): jest.Mocked<MCPConnect
       resources: { listChanged: true },
       prompts: { get: `getPrompts for ${serverName}` },
     }),
-    listTools: jest.fn().mockResolvedValue({
-      tools: [
-        {
-          name: 'listFiles',
-          description: `Description for ${serverName}'s listFiles tool`,
-          inputSchema: {
-            type: 'object',
-            properties: {
-              input: { type: 'string' },
-            },
-          },
-        },
-      ],
-    }),
+    listTools: jest.fn().mockResolvedValue(defaultToolsResult),
+    request: jest.fn().mockResolvedValue(defaultToolsResult),
   };
 
   return {

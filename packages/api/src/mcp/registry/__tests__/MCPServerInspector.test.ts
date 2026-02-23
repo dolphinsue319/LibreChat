@@ -238,6 +238,7 @@ describe('MCPServerInspector', () => {
 
       // Mock server with no tools
       mockConnection.client.listTools = jest.fn().mockResolvedValue({ tools: [] });
+      mockConnection.client.request = jest.fn().mockResolvedValue({ tools: [] });
 
       const result = await MCPServerInspector.inspect('test_server', rawConfig, mockConnection);
 
@@ -320,9 +321,59 @@ describe('MCPServerInspector', () => {
     });
   });
 
+  describe('getToolFunctions() with non-compliant inputSchema', () => {
+    it('should normalize tools with missing type in inputSchema', async () => {
+      const toolsResult = {
+        tools: [
+          {
+            name: 'gitlab_tool',
+            description: 'A tool with no type in inputSchema',
+            inputSchema: {
+              properties: { path: { type: 'string' } },
+            },
+          },
+          {
+            name: 'normal_tool',
+            description: 'A tool with standard inputSchema',
+            inputSchema: {
+              type: 'object',
+              properties: { id: { type: 'number' } },
+            },
+          },
+        ],
+      };
+      mockConnection.client.request = jest.fn().mockResolvedValue(toolsResult);
+
+      const result = await MCPServerInspector.getToolFunctions('my_server', mockConnection);
+
+      expect(result.gitlab_tool_mcp_my_server).toEqual({
+        type: 'function',
+        function: {
+          name: 'gitlab_tool_mcp_my_server',
+          description: 'A tool with no type in inputSchema',
+          parameters: {
+            type: 'object',
+            properties: { path: { type: 'string' } },
+          },
+        },
+      });
+      expect(result.normal_tool_mcp_my_server).toEqual({
+        type: 'function',
+        function: {
+          name: 'normal_tool_mcp_my_server',
+          description: 'A tool with standard inputSchema',
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'number' } },
+          },
+        },
+      });
+    });
+  });
+
   describe('getToolFunctions()', () => {
     it('should convert MCP tools to LibreChat tool functions format', async () => {
-      mockConnection.client.listTools = jest.fn().mockResolvedValue({
+      const toolsResult = {
         tools: [
           {
             name: 'file_read',
@@ -344,7 +395,9 @@ describe('MCPServerInspector', () => {
             },
           },
         ],
-      });
+      };
+      mockConnection.client.listTools = jest.fn().mockResolvedValue(toolsResult);
+      mockConnection.client.request = jest.fn().mockResolvedValue(toolsResult);
 
       const result = await MCPServerInspector.getToolFunctions('my_server', mockConnection);
 
@@ -379,6 +432,7 @@ describe('MCPServerInspector', () => {
 
     it('should handle empty tools list', async () => {
       mockConnection.client.listTools = jest.fn().mockResolvedValue({ tools: [] });
+      mockConnection.client.request = jest.fn().mockResolvedValue({ tools: [] });
 
       const result = await MCPServerInspector.getToolFunctions('my_server', mockConnection);
 

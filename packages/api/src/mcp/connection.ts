@@ -21,6 +21,7 @@ import type { MCPOAuthTokens } from './oauth/types';
 import { withTimeout } from '~/utils/promise';
 import type * as t from './types';
 import { createSSRFSafeUndiciConnect, resolveHostnameSSRF } from '~/auth';
+import { RelaxedListToolsResultSchema, normalizeToolInputSchemas } from './schema';
 import { sanitizeUrlForLogging } from './utils';
 import { mcpConfig } from './mcpConfig';
 
@@ -907,8 +908,11 @@ export class MCPConnection extends EventEmitter {
 
   async fetchTools() {
     try {
-      const { tools } = await this.client.listTools();
-      return tools;
+      const result = await this.client.request(
+        { method: 'tools/list' },
+        RelaxedListToolsResultSchema,
+      );
+      return normalizeToolInputSchemas(result.tools);
     } catch (error) {
       this.emitError(error, 'Failed to fetch tools');
       return [];
@@ -968,7 +972,10 @@ export class MCPConnection extends EventEmitter {
 
         // If we have capabilities, try calling a supported method to verify connection
         if (capabilities?.tools) {
-          await this.client.listTools();
+          await this.client.request(
+            { method: 'tools/list' },
+            RelaxedListToolsResultSchema,
+          );
           return this.connectionState === 'connected';
         } else if (capabilities?.resources) {
           await this.client.listResources();
