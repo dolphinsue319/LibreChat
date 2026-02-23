@@ -12,6 +12,7 @@ LibreChat is a monorepo with the following key workspaces:
 | `/packages/data-provider` | TypeScript | Shared | — | Shared API types, endpoints, data-service — used by both frontend and backend |
 | `/client` | TypeScript/React | Frontend | `packages/data-provider`, `packages/client` | Frontend SPA |
 | `/packages/client` | TypeScript | Frontend | `packages/data-provider` | Shared frontend utilities |
+| `/packages/ado-mcp-server` | TypeScript | Backend | — | Azure DevOps MCP server |
 
 The source code for `@librechat/agents` (major backend dependency, same team) is at `/home/danny/agentus`.
 
@@ -20,7 +21,7 @@ The source code for `@librechat/agents` (major backend dependency, same team) is
 ## Workspace Boundaries
 
 - **All new backend code must be TypeScript** in `/packages/api`.
-- Keep `/api` changes to the absolute minimum (thin JS wrappers calling into `/packages/api`).
+- Keep `/api` changes to the absolute minimum (thin JS wrappers that `require('@librechat/api')` and re-export TS functions).
 - Database-specific shared logic goes in `/packages/data-schemas`.
 - Frontend/backend shared API logic (endpoints, types, data-service) goes in `/packages/data-provider`.
 - Build data-provider from project root: `npm run build:data-provider`.
@@ -94,6 +95,7 @@ Multi-line imports count total character length across all lines. Consolidate va
 - All user-facing text must use `useLocalize()`.
 - Only update English keys in `client/src/locales/en/translation.json` (other languages are automated externally).
 - Semantic key prefixes: `com_ui_`, `com_assistants_`, etc.
+- The `i18next/no-literal-string` ESLint rule enforces this — literal strings in JSX/TSX will fail lint.
 
 ### Components
 
@@ -136,6 +138,17 @@ Multi-line imports count total character length across all lines. Consolidate va
 | `npm run frontend` | Build all compiled code sequentially (legacy fallback) |
 | `npm run frontend:dev` | Start frontend dev server with HMR (port 3090, requires backend running) |
 | `npm run build:data-provider` | Rebuild `packages/data-provider` after changes |
+| `npm run build:api` | Build `packages/api` only |
+| `npm run build:data-schemas` | Build `packages/data-schemas` only |
+| `npm run lint` | ESLint across entire monorepo |
+| `npm run lint:fix` | ESLint with auto-fix |
+| `npm run format` | Prettier auto-format across entire monorepo |
+| `npm run test:client` | Run client unit tests |
+| `npm run test:api` | Run `/api` unit tests |
+| `npm run test:packages:api` | Run `packages/api` unit tests |
+| `npm run test:packages:data-provider` | Run `packages/data-provider` unit tests |
+| `npm run test:packages:data-schemas` | Run `packages/data-schemas` unit tests |
+| `npm run test:all` | Run all workspace tests in sequence |
 
 - Node.js: v20.19.0+ or ^22.12.0 or >= 23.0.0
 - Database: MongoDB
@@ -146,13 +159,28 @@ Multi-line imports count total character length across all lines. Consolidate va
 ## Testing
 
 - Framework: **Jest**, run per-workspace.
-- Run tests from their workspace directory: `cd api && npx jest <pattern>`, `cd packages/api && npx jest <pattern>`, etc.
+- Root-level shortcuts: `npm run test:client`, `npm run test:api`, `npm run test:packages:api`, etc.
+- Single file: `cd <workspace> && npx jest <pattern>` (e.g., `cd packages/api && npx jest auth`).
+- Test file patterns: `.test.ts`, `.spec.ts`, or files inside `__tests__/` directories.
 - Frontend tests: `__tests__` directories alongside components; use `test/layout-test-utils` for rendering.
+- `packages/api` has integration test categories (e.g., `@integration`) excluded from standard CI runs.
 - Cover loading, success, and error states for UI/data flows.
 - Mock data-provider hooks and external dependencies.
 
 ---
 
-## Formatting
+## Formatting & Linting
 
-Fix all formatting lint errors (trailing spaces, tabs, newlines, indentation) using auto-fix when available. All TypeScript/ESLint warnings and errors **must** be resolved.
+- Fix all formatting lint errors using auto-fix when available. All TypeScript/ESLint warnings and errors **must** be resolved.
+- **Prettier config**: 100-char print width, single quotes, trailing commas everywhere, Tailwind class sorting via `prettier-plugin-tailwindcss`.
+- **Circular dependency rule**: `import/no-cycle` is an ESLint error. CI also checks for circular deps via rollup — never introduce import cycles.
+- **Pre-commit hooks**: Husky + lint-staged auto-runs Prettier and ESLint on staged files. Do not skip hooks (`--no-verify`). If a commit fails due to hooks, fix the issues and re-commit.
+
+---
+
+## Backend Architecture Notes
+
+- **Thin wrapper pattern**: `/api` JS files `require('@librechat/api')` and wrap TS exports with minimal glue code.
+- **Model injection**: `packages/data-schemas` uses factory functions that take `mongoose` as a parameter, allowing models to be shared across projects.
+- **Config flow**: `librechat.yaml` → `AppService` → Keyv cache → `configMiddleware` → `req.config`.
+- **RBAC**: `generateCheckAccess()` factory from `@librechat/api` produces route-level permission middleware.
